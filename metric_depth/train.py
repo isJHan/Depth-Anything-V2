@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler
 from torch.optim import AdamW
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
@@ -17,6 +17,8 @@ from torch.utils.tensorboard import SummaryWriter
 from dataset.hypersim import Hypersim
 from dataset.kitti import KITTI
 from dataset.vkitti2 import VKITTI2
+from dataset.c3vd import C3VD
+from dataset.UCL import UCL
 from depth_anything_v2.dpt import DepthAnythingV2
 from util.dist_helper import setup_distributed
 from util.loss import SiLogLoss
@@ -27,15 +29,15 @@ from util.utils import init_log
 parser = argparse.ArgumentParser(description='Depth Anything V2 for Metric Depth Estimation')
 
 parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-parser.add_argument('--dataset', default='hypersim', choices=['hypersim', 'vkitti'])
+parser.add_argument('--dataset', default='UCL', choices=['hypersim', 'vkitti', 'UCL', 'c3vd'])
 parser.add_argument('--img-size', default=518, type=int)
 parser.add_argument('--min-depth', default=0.001, type=float)
-parser.add_argument('--max-depth', default=20, type=float)
-parser.add_argument('--epochs', default=40, type=int)
-parser.add_argument('--bs', default=2, type=int)
+parser.add_argument('--max-depth', default=200, type=float)
+parser.add_argument('--epochs', default=120, type=int)
+parser.add_argument('--bs', default=2, type=int) # batch_size
 parser.add_argument('--lr', default=0.000005, type=float)
-parser.add_argument('--pretrained-from', type=str)
-parser.add_argument('--save-path', type=str, required=True)
+parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vitl.pth', type=str)
+parser.add_argument('--save-path', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/UCL',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
 
@@ -43,46 +45,64 @@ parser.add_argument('--port', default=None, type=int)
 def main():
     args = parser.parse_args()
     
-    warnings.simplefilter('ignore', np.RankWarning)
+    warnings.simplefilter('ignore', np.RankWarning) # 忽略 Numpy 中的秩警告
     
     logger = init_log('global', logging.INFO)
     logger.propagate = 0
     
-    rank, world_size = setup_distributed(port=args.port)
+    # rank, world_size = setup_distributed(port=args.port) # 设置分布式训练环境，包括获取当前进程的 rank 或者 world_size(num_gpus)
     
-    if rank == 0:
+    rank = 0
+    world_size = 1
+    
+    if rank == 0: # 主进程
         all_args = {**vars(args), 'ngpus': world_size}
         logger.info('{}\n'.format(pprint.pformat(all_args)))
-        writer = SummaryWriter(args.save_path)
+        writer = SummaryWriter(args.save_path) # 训练过程中记录日志和可视化
     
     cudnn.enabled = True
     cudnn.benchmark = True
     
+   # dist.init_process_group(backend='nccl')
+    
     size = (args.img_size, args.img_size)
     if args.dataset == 'hypersim':
-        trainset = Hypersim('dataset/splits/hypersim/train.txt', 'train', size=size)
+        trainset = Hypersim('dataset/splits/hypersim/train.txt', 'train', size=size) # train datasets
     elif args.dataset == 'vkitti':
         trainset = VKITTI2('dataset/splits/vkitti2/train.txt', 'train', size=size)
+    elif args.dataset == 'c3vd':  # if c3vd
+        trainset = C3VD('dataset/splits/c3vd/train.txt', 'train', size=size)
+    elif args.dataset == 'UCL':
+        trainset = UCL('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
     else:
         raise NotImplementedError
-    trainsampler = torch.utils.data.distributed.DistributedSampler(trainset)
-    trainloader = DataLoader(trainset, batch_size=args.bs, pin_memory=True, num_workers=4, drop_last=True, sampler=trainsampler)
+    # trainsampler = torch.utils.data.distributed.DistributedSampler(trainset)
+    # trainsampler = torch.utils.data.SequentialSampler(trainset) # zx
+    trainsampler = RandomSampler(trainset)
+    trainloader = DataLoader(trainset, batch_size=args.bs, pin_memory=True, num_workers=4, drop_last=True, sampler=trainsampler) # zx num_worker
     
     if args.dataset == 'hypersim':
-        valset = Hypersim('dataset/splits/hypersim/val.txt', 'val', size=size)
+        valset = Hypersim('dataset/splits/hypersim/val.txt', 'val', size=size) # validation datasets
     elif args.dataset == 'vkitti':
         valset = KITTI('dataset/splits/kitti/val.txt', 'val', size=size)
+    elif args.dataset == 'c3vd':
+        valset = C3VD('dataset/splits/c3vd/val.txt', 'val', size=size)
+    elif args.dataset == 'UCL':
+        valset = UCL('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
     else:
         raise NotImplementedError
-    valsampler = torch.utils.data.distributed.DistributedSampler(valset)
+    # valsampler = torch.utils.data.distributed.DistributedSampler(valset)
+    valsampler = torch.utils.data.SequentialSampler(valset) #zx
     valloader = DataLoader(valset, batch_size=1, pin_memory=True, num_workers=4, drop_last=True, sampler=valsampler)
     
-    local_rank = int(os.environ["LOCAL_RANK"])
+    # local_rank = int(os.environ["LOCAL_RANK"])
+    local_rank = 0
     
     model_configs = {
         'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
         'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
         'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+        # 'metric_hypersim_vitl': {'encoder': 'metric_hypersim_vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
         'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
     }
     model = DepthAnythingV2(**{**model_configs[args.encoder], 'max_depth': args.max_depth})
@@ -90,10 +110,13 @@ def main():
     if args.pretrained_from:
         model.load_state_dict({k: v for k, v in torch.load(args.pretrained_from, map_location='cpu').items() if 'pretrained' in k}, strict=False)
     
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model) # 保持 BatchNorm 层的统计数据同步
+    
+    model = torch.nn.DataParallel(model)
+    
     model.cuda(local_rank)
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], broadcast_buffers=False,
-                                                      output_device=local_rank, find_unused_parameters=True)
+    # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], broadcast_buffers=False,
+    #                                                   output_device=local_rank, find_unused_parameters=True) # 实现模型并行化
     
     criterion = SiLogLoss().cuda(local_rank)
     
@@ -113,22 +136,22 @@ def main():
                             epoch, args.epochs, previous_best['abs_rel'], previous_best['sq_rel'], previous_best['rmse'], 
                             previous_best['rmse_log'], previous_best['log10'], previous_best['silog']))
         
-        trainloader.sampler.set_epoch(epoch + 1)
+        # trainloader.sampler.set_epoch(epoch + 1)
         
         model.train()
         total_loss = 0
         
-        for i, sample in enumerate(trainloader):
+        for i, sample in enumerate(trainloader):   
             optimizer.zero_grad()
             
             img, depth, valid_mask = sample['image'].cuda(), sample['depth'].cuda(), sample['valid_mask'].cuda()
             
-            if random.random() < 0.5:
+            if random.random() < 0.5: # 提高模型的鲁棒性和泛化能力
                 img = img.flip(-1)
                 depth = depth.flip(-1)
                 valid_mask = valid_mask.flip(-1)
             
-            pred = model(img)
+            pred = model(img) # img -> prediction depth img
             
             loss = criterion(pred, depth, (valid_mask == 1) & (depth >= args.min_depth) & (depth <= args.max_depth))
             
@@ -138,6 +161,8 @@ def main():
             total_loss += loss.item()
             
             iters = epoch * len(trainloader) + i
+            
+            # print(i)
             
             lr = args.lr * (1 - iters / total_iters) ** 0.9
             
@@ -149,6 +174,10 @@ def main():
             
             if rank == 0 and i % 100 == 0:
                 logger.info('Iter: {}/{}, LR: {:.7f}, Loss: {:.3f}'.format(i, len(trainloader), optimizer.param_groups[0]['lr'], loss.item()))
+
+
+            # if i >= 4000 :
+            #     break
         
         model.eval()
         
@@ -170,17 +199,24 @@ def main():
             if valid_mask.sum() < 10:
                 continue
             
-            cur_results = eval_depth(pred[valid_mask], depth[valid_mask])
+            pred = pred.unsqueeze(1)  # 在第二个维度上增加一个维度, 变成 [256, 1, 3]
+            pred = pred.expand(-1, 256, -1)  # 在第二个维度上复制 256 次, 变成 [256, 256, 3]
+
+            cur_results = eval_depth(pred[valid_mask], depth[valid_mask]) # pred : [256, 3] -> [256, 256, 3]
             
             for k in results.keys():
                 results[k] += cur_results[k]
             nsamples += 1
+
+            # # print(i)
+            # if i >= 8000:
+            #     break
         
-        torch.distributed.barrier()
+        # torch.distributed.barrier()
         
-        for k in results.keys():
-            dist.reduce(results[k], dst=0)
-        dist.reduce(nsamples, dst=0)
+        # for k in results.keys():
+        #     dist.reduce(results[k], dst=0)
+        # dist.reduce(nsamples, dst=0)
         
         if rank == 0:
             logger.info('==========================================================================================')
@@ -206,6 +242,8 @@ def main():
                 'previous_best': previous_best,
             }
             torch.save(checkpoint, os.path.join(args.save_path, 'latest.pth'))
+
+        print("finish this epoch!!!!!")
 
 
 if __name__ == '__main__':
