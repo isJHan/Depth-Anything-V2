@@ -112,7 +112,7 @@ def main():
     
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model) # 保持 BatchNorm 层的统计数据同步
     
-    model = torch.nn.DataParallel(model)
+    # model = torch.nn.DataParallel(model) # ! #jiahan 不启用多个GPU训练
     
     model.cuda(local_rank)
     # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], broadcast_buffers=False,
