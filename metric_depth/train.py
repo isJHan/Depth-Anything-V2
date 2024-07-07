@@ -141,7 +141,7 @@ def main():
         model.train()
         total_loss = 0
         
-        for i, sample in enumerate(trainloader):   
+        for i, sample in enumerate(trainloader):
             optimizer.zero_grad()
             
             img, depth, valid_mask = sample['image'].cuda(), sample['depth'].cuda(), sample['valid_mask'].cuda()
@@ -199,8 +199,8 @@ def main():
             if valid_mask.sum() < 10:
                 continue
             
-            pred = pred.unsqueeze(1)  # 在第二个维度上增加一个维度, 变成 [256, 1, 3]
-            pred = pred.expand(-1, 256, -1)  # 在第二个维度上复制 256 次, 变成 [256, 256, 3]
+            # pred = pred.unsqueeze(1)  # 在第二个维度上增加一个维度, 变成 [256, 1, 3]
+            # pred = pred.expand(-1, 256, -1)  # 在第二个维度上复制 256 次, 变成 [256, 256, 3]
 
             cur_results = eval_depth(pred[valid_mask], depth[valid_mask]) # pred : [256, 3] -> [256, 256, 3]
             
