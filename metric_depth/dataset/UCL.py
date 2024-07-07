@@ -31,13 +31,15 @@ class UCL(Dataset):
         ] + ([Crop(size[0])] if self.mode == 'train' else []))
     
     def __getitem__(self, item):
-        img_path = self.filelist[item].split(' ')[0]
-        depth_path = self.filelist[item].split(' ')[1]
+        # ! #jiahan 生成的txt文件中，每一行是一个样本，第一个是depth图像的路径，第二个是rgb图像的路径
+        img_path = self.filelist[item].split(' ')[1]
+        depth_path = self.filelist[item].split(' ')[0]
         
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) / 255.0
         
-        depth = 200.0 * cv2.imread(depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)/255.0  # mm
+        # depth = 200.0 * cv2.imread(depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)/255.0  # mm
+        depth = 200.0 * cv2.imread(depth_path, -1)/255.0  # mm
         
         sample = self.transform({'image': image, 'depth': depth})
 
