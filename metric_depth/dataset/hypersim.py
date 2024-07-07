@@ -24,13 +24,16 @@ def hypersim_distance_to_depth(npyDistance):
 
 
 class Hypersim(Dataset):
-    def __init__(self, filelist_path, mode, size=(518, 518)):
+    def __init__(self, filelist_path, mode, size=(518, 518)): # 构造类，接受3个参数：
+                                                              # filepath: 文件路径（txt）
+                                                              # mode: 'train' or 'val'
+                                                              # size: 图像目标大小， default (518, 518)
         
         self.mode = mode
         self.size = size
         
         with open(filelist_path, 'r') as f:
-            self.filelist = f.read().splitlines()
+            self.filelist = f.read().splitlines() # 每一行包含一个 图像路径 + 图像对应的深度图路径
         
         net_w, net_h = size
         self.transform = Compose([
@@ -38,10 +41,10 @@ class Hypersim(Dataset):
                 width=net_w,
                 height=net_h,
                 resize_target=True if mode == 'train' else False,
-                keep_aspect_ratio=True,
-                ensure_multiple_of=14,
+                keep_aspect_ratio=True, # keep width:height invariant
+                ensure_multiple_of=14, # 确保调整后的图像大小是 14 的倍数
                 resize_method='lower_bound',
-                image_interpolation_method=cv2.INTER_CUBIC,
+                image_interpolation_method=cv2.INTER_CUBIC, # 双三次插值法进行图像插值
             ),
             NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             PrepareForNet(),
@@ -52,7 +55,7 @@ class Hypersim(Dataset):
         depth_path = self.filelist[item].split(' ')[1]
         
         image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) / 255.0
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) / 255.0 # BGR -> RGB, normalize to [0, 1]
         
         depth_fd = h5py.File(depth_path, "r")
         distance_meters = np.array(depth_fd['dataset'])
