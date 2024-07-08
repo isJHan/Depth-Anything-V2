@@ -171,6 +171,7 @@ def main():
             
             if rank == 0:
                 writer.add_scalar('train/loss', loss.item(), iters)
+                writer.add_scalar('train/MAE', (pred - depth).abs().mean(), iters)
             
             if rank == 0 and i % 100 == 0:
                 logger.info('Iter: {}/{}, LR: {:.7f}, Loss: {:.3f}'.format(i, len(trainloader), optimizer.param_groups[0]['lr'], loss.item()))
