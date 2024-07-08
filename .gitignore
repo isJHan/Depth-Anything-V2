@@ -16,3 +16,4 @@ build/
 train_checkpoints/*
 checkpoints/*
 
+*.pth

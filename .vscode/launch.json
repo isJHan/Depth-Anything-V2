@@ -10,6 +10,20 @@
             "request": "launch",
             "program": "metric_depth/train.py",
             "console": "integratedTerminal"
-        }
+        },
+        {
+            "name": "metric/run.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "metric_depth/run.py",
+            "args": [
+                "--img-path", "/home/zanxin/jiahan/T1/C_T1_L1_1_resized/FrameBuffer_0382.png",
+                "--outdir", ".",
+                "--load-from", "metric_depth/123.pth",
+                "--max-depth", "200"
+            ],
+            "console": "integratedTerminal"
+        },
+        
     ]
 }
