@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from torchvision.transforms import Compose
 
 from dataset.transform import Resize, NormalizeImage, PrepareForNet, Crop
+import numpy as np
 
 
 class C3VD(Dataset):
@@ -37,14 +38,18 @@ class C3VD(Dataset):
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) / 255.0
         
-        depth = cv2.imread(depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH) / 100.0  # cm to m
+        # depth = 200.0 * cv2.imread(depth_path, -1)/255.0  # mm
+        depth = np.load(depth_path)
+        # depth = 200.0 * depth / 65535.0
+
         
         sample = self.transform({'image': image, 'depth': depth})
 
         sample['image'] = torch.from_numpy(sample['image'])
         sample['depth'] = torch.from_numpy(sample['depth'])
         
-        sample['valid_mask'] = (sample['depth'] <= 80)
+        # sample['valid_mask'] = (sample['depth'] <= 80)
+        sample['valid_mask'] = (sample['depth'] >= 0)  
         
         sample['image_path'] = self.filelist[item].split(' ')[0]
         
