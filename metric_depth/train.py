@@ -19,6 +19,7 @@ from dataset.kitti import KITTI
 from dataset.vkitti2 import VKITTI2
 from dataset.c3vd import C3VD
 from dataset.UCL import UCL
+from dataset.SimCol import SimCol
 from depth_anything_v2.dpt import DepthAnythingV2
 from util.dist_helper import setup_distributed
 from util.loss import SiLogLoss
@@ -26,18 +27,25 @@ from util.metric import eval_depth
 from util.utils import init_log
 
 
+# # sleep 4 小时
+# import time
+# print("sleeping")
+# time.sleep(4*60*60)
+
+
 parser = argparse.ArgumentParser(description='Depth Anything V2 for Metric Depth Estimation')
 
 parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-parser.add_argument('--dataset', default='UCL', choices=['hypersim', 'vkitti', 'UCL', 'c3vd'])
+parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'c3vd', 'SimCol'])
 parser.add_argument('--img-size', default=518, type=int)
 parser.add_argument('--min-depth', default=0.001, type=float)
-parser.add_argument('--max-depth', default=200, type=float)
-parser.add_argument('--epochs', default=120, type=int)
+parser.add_argument('--max-depth', default=200, type=float) # UCL SimCol 200mm, C3VD 100mm
+parser.add_argument('--epochs', default=50, type=int)
 parser.add_argument('--bs', default=2, type=int) # batch_size
 parser.add_argument('--lr', default=0.000005, type=float)
 parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vitl.pth', type=str)
-parser.add_argument('--save-path', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/UCL',type=str, required=False)
+# parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/SimCol/train_from_latest.pth', type=str)
+parser.add_argument('--save-path', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/C3VD',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
 
@@ -71,9 +79,11 @@ def main():
     elif args.dataset == 'vkitti':
         trainset = VKITTI2('dataset/splits/vkitti2/train.txt', 'train', size=size)
     elif args.dataset == 'c3vd':  # if c3vd
-        trainset = C3VD('dataset/splits/c3vd/train.txt', 'train', size=size)
+        trainset = C3VD('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/c3vd/train.txt', 'train', size=size)
     elif args.dataset == 'UCL':
         trainset = UCL('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
+    elif args.dataset == 'SimCol':
+        trainset = SimCol('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/Simcol/train.txt', 'train', size=size)
     else:
         raise NotImplementedError
     # trainsampler = torch.utils.data.distributed.DistributedSampler(trainset)
@@ -86,9 +96,11 @@ def main():
     elif args.dataset == 'vkitti':
         valset = KITTI('dataset/splits/kitti/val.txt', 'val', size=size)
     elif args.dataset == 'c3vd':
-        valset = C3VD('dataset/splits/c3vd/val.txt', 'val', size=size)
+        valset = C3VD('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/c3vd/val.txt', 'val', size=size)
     elif args.dataset == 'UCL':
         valset = UCL('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
+    elif args.dataset == 'SimCol':
+        valset = SimCol('/Disk_2/ZanXin/Depth-Anything-V2/metric_depth/dataset/splits/Simcol/val.txt', 'val', size=size)
     else:
         raise NotImplementedError
     # valsampler = torch.utils.data.distributed.DistributedSampler(valset)
@@ -177,9 +189,6 @@ def main():
                 logger.info('Iter: {}/{}, LR: {:.7f}, Loss: {:.3f}'.format(i, len(trainloader), optimizer.param_groups[0]['lr'], loss.item()))
 
 
-            # if i >= 4000 :
-            #     break
-        
         model.eval()
         
         results = {'d1': torch.tensor([0.0]).cuda(), 'd2': torch.tensor([0.0]).cuda(), 'd3': torch.tensor([0.0]).cuda(), 
