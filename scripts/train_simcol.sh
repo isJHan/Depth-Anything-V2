@@ -1,0 +1,1 @@
+python ../metric_depth/train.py --encoder 'vitl' --dataset 'SimCol' --img-size 518 --min-depth 0.001 --max-depth 200.0 --epochs 11 --bs 2 --lr 0.000005 --save-path '/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/SimCol' 

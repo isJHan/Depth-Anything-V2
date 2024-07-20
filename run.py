@@ -12,7 +12,7 @@ from depth_anything_v2.dpt import DepthAnythingV2
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Depth Anything V2')
     
-    parser.add_argument('--img-path', type=str)
+    parser.add_argument('--img-path', type=str, default='./img_input')
     parser.add_argument('--input-size', type=int, default=518)
     parser.add_argument('--outdir', type=str, default='./vis_depth')
     
@@ -43,20 +43,20 @@ if __name__ == '__main__':
         else:
             filenames = [args.img_path]
     else:
-        filenames = glob.glob(os.path.join(args.img_path, '**/*'), recursive=True)
+        filenames = glob.glob(os.path.join(args.img_path, '**/*'), recursive=True) # 查询当前目录和子目录下的所有文件
     
-    os.makedirs(args.outdir, exist_ok=True)
+    os.makedirs(args.outdir, exist_ok=True) # mkdir output_path
     
-    cmap = matplotlib.colormaps.get_cmap('Spectral_r')
+    cmap = matplotlib.colormaps.get_cmap('Spectral_r') # Spectral_r 可视化深度图颜色映射器
     
-    for k, filename in enumerate(filenames):
+    for k, filename in enumerate(filenames): # k 是索引， filename 是完整路径
         print(f'Progress {k+1}/{len(filenames)}: {filename}')
         
         raw_image = cv2.imread(filename)
         
         depth = depth_anything.infer_image(raw_image, args.input_size)
         
-        depth = (depth - depth.min()) / (depth.max() - depth.min()) * 255.0
+        depth = (depth - depth.min()) / (depth.max() - depth.min()) * 255.0 # 将深度值归一化到 [0,255]
         depth = depth.astype(np.uint8)
         
         if args.grayscale:

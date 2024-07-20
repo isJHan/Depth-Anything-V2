@@ -46,7 +46,8 @@ if __name__ == '__main__':
         else:
             filenames = [args.img_path]
     else:
-        filenames = glob.glob(os.path.join(args.img_path, '**/*'), recursive=True)
+        filenames = glob.glob(os.path.join(args.img_path, '*.png'), recursive=False)
+        filenames += glob.glob(os.path.join(args.img_path, '*.jpg'), recursive=False)
     
     os.makedirs(args.outdir, exist_ok=True)
     

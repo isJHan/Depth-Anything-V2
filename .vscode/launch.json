@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "train UCL",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "metric_depth/train.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "metric/run.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "metric_depth/run.py",
+            "args": [
+                "--img-path", "/home/zanxin/jiahan/T1/C_T1_L1_1_resized/FrameBuffer_0382.png",
+                "--outdir", ".",
+                "--load-from", "metric_depth/123.pth",
+                "--max-depth", "200"
+            ],
+            "console": "integratedTerminal"
+        },
+        
+    ]
+}
