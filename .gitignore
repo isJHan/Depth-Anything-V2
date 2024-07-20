@@ -17,3 +17,4 @@ train_checkpoints/*
 checkpoints/*
 
 *.pth
+*.swp
