@@ -19,11 +19,11 @@ from dataset.hypersim import Hypersim
 from dataset.kitti import KITTI
 from dataset.vkitti2 import VKITTI2
 from dataset.c3vd import C3VD
-from dataset.UCL import UCL, UCL_flip_and_swap
+from dataset.UCL import UCL, UCL_flip_and_swap, UCL_PPS
 from dataset.SimCol import SimCol
 from depth_anything_v2.dpt import DepthAnythingV2
 from util.dist_helper import setup_distributed
-from util.loss import SiLogLoss
+from util.loss import SiLogLoss, PPS_loss
 from util.metric import eval_depth
 from util.utils import init_log
 
@@ -37,7 +37,7 @@ from util.utils import init_log
 parser = argparse.ArgumentParser(description='Depth Anything V2 for Metric Depth Estimation')
 
 parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap','c3vd', 'SimCol'])
+parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap', 'UCL_pps','c3vd', 'SimCol'])
 parser.add_argument('--img-size', default=518, type=int)
 parser.add_argument('--min-depth', default=0.001, type=float)
 parser.add_argument('--max-depth', default=200, type=float) # UCL SimCol 200mm, C3VD 100mm
@@ -85,6 +85,8 @@ def main():
         trainset = C3VD('metric_depth/dataset/splits/c3vd/train.txt', 'train', size=size)
     elif args.dataset == 'UCL':
         trainset = UCL('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
+    elif args.dataset == 'UCL_pps':
+        trainset = UCL_PPS('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
     elif args.dataset == 'UCL_flip_and_swap':
         trainset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
     elif args.dataset == 'SimCol':
@@ -104,6 +106,8 @@ def main():
         valset = C3VD('metric_depth/dataset/splits/c3vd/val.txt', 'val', size=size)
     elif args.dataset == 'UCL':
         valset = UCL('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
+    elif args.dataset == 'UCL_pps':
+        valset = UCL_PPS('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
     elif args.dataset == 'UCL_flip_and_swap':
         valset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol':
@@ -138,6 +142,7 @@ def main():
     #                                                   output_device=local_rank, find_unused_parameters=True) # 实现模型并行化
     
     criterion = SiLogLoss().cuda(local_rank)
+    criterion_pps = PPS_loss(K=trainset.K).cuda(local_rank)
     
     optimizer = AdamW([{'params': [param for name, param in model.named_parameters() if 'pretrained' in name], 'lr': args.lr},
                        {'params': [param for name, param in model.named_parameters() if 'pretrained' not in name], 'lr': args.lr * 10.0}],
@@ -161,9 +166,9 @@ def main():
         total_loss = 0
         
         for i, sample in enumerate(trainloader):
-            optimizer.zero_grad()
-            
             img, depth, valid_mask = sample['image'].cuda(), sample['depth'].cuda(), sample['valid_mask'].cuda()
+            
+            optimizer.zero_grad()
             
             if random.random() < 0.5: # 提高模型的鲁棒性和泛化能力
                 img = img.flip(-1)
@@ -173,6 +178,17 @@ def main():
             pred = model(img) # img -> prediction depth img
             
             loss = criterion(pred, depth, (valid_mask == 1) & (depth >= args.min_depth) & (depth <= args.max_depth))
+
+            if True:
+                
+                lightness_mask = sample['lightness_mask'].cuda()
+                K = sample['intri']
+                h,w = sample['h_w']
+                h,w = h[0], w[0]
+                pred_resize = F.interpolate(pred.unsqueeze(1), (h,w), mode='bilinear', align_corners=True).squeeze(1)
+                gt_resize = F.interpolate(depth.unsqueeze(1), (h,w), mode='bilinear', align_corners=True).squeeze(1)
+
+                loss += criterion_pps(pred_resize, gt_resize, lightness_mask)
             
             loss.backward()
             optimizer.step()
