@@ -15,6 +15,9 @@ build/
 # model
 train_checkpoints/*
 checkpoints/*
+checkpoints
+depth_output
+save_checkpoints
 
 *.pth
 *.swp

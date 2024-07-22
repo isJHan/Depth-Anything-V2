@@ -36,7 +36,11 @@ if __name__ == '__main__':
     }
     
     depth_anything = DepthAnythingV2(**{**model_configs[args.encoder], 'max_depth': args.max_depth})
-    depth_anything.load_state_dict(torch.load(args.load_from, map_location='cpu'))
+    weight = torch.load(args.load_from, map_location='cpu')
+    if 'model' in weight.keys(): weight = weight['model']
+    else: pass
+    
+    depth_anything.load_state_dict(weight)
     depth_anything = depth_anything.to(DEVICE).eval()
     
     if os.path.isfile(args.img_path):

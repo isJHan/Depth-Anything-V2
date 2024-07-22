@@ -24,6 +24,22 @@
             ],
             "console": "integratedTerminal"
         },
+        {
+            "name": "train UCL metric flip and swap",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "metric_depth/train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--encoder", "vits", 
+                "--dataset", "UCL_flip_and_swap", 
+                // "--dataset", "UCL", 
+                "--max-depth", "200", 
+                "--epochs", "10", 
+                "--save-path", "./save_checkpoints/vits_ucl_metric_flip_and_swap", 
+                "--pretrained-from", "checkpoints/depth_anything_v2_metric_hypersim_vits.pth" 
+            ]
+        },
         
     ]
 }

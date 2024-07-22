@@ -62,4 +62,6 @@ for scene in scenes:
 --grayscale
 """
     print(cmd)
-    os.system(cmd)
+    ret = os.system(cmd)
+    if ret != 0:
+        raise Exception("Failed to run the command")
