@@ -32,14 +32,14 @@ class PPS_loss(nn.Module):
         PPS_pred = self.__compute_PPS(L_X_pred, A_X_pred, normal_N_pred)
         PPS_gt = self.__compute_PPS(L_X_gt, A_X_gt, normal_N_gt)
 
-        loss = mask * (PPS_pred - PPS_gt).norm(dim=-1).mean()
+        loss = (mask * (PPS_pred - PPS_gt)).norm(dim=-1).mean()
         
         return loss
         
 
     def __compute_PPS(self, L_X, A_X, normal_N):
         B, H, W, _ = L_X.shape
-        return A_X * (L_X.view(-1,3) @ normal_N.view(-1,3).T).view(B,H,W,1)
+        return A_X * (L_X.reshape(-1,1,3) @ normal_N.reshape(-1,1,3).transpose(1,2)).reshape(B,H,W,1)
 
     def __backproject_to_pointcloud_pytorch(self, depth):
         K = self.K
@@ -65,48 +65,73 @@ class PPS_loss(nn.Module):
         mu = self.mu
         
         B,H,W = depth_map.shape
-        light_d = torch.zeros((B,H,W,3), device=depth_map.device, dtype=depth_map.dtype) # [3]
-        light_d[..., 2] = 1.0
+        light_d_ = torch.zeros((B,H,W,3), device=depth_map.device, dtype=depth_map.dtype) # [3]
+        light_d_[..., 2] = 1.0
+        light_d = light_d_.view(-1,1,3).transpose(2,1) # [B, 3, 1] 光源方向
         points_X = self.__backproject_to_pointcloud_pytorch(depth_map) # [B, H, W, 3]
         points_p = points_X / points_X[..., 2:3] # [B, H, W, 3] 归一化平面
+        torch.cuda.empty_cache()
+        
         L_X = (points_X - points_p) / (points_X - points_p).norm(dim=-1, keepdim=True) # [B, H, W, 1] 归一化光线
 
-        A_X_up = (L_X.view(-1,3) @ light_d.view(-1,3).T).view(B,H,W,1) # [B, H, W, 1] 光线方向和光源方向的夹角
-        A_X_up = A_X_up ** (mu)
-        A_X_down = (points_X - points_p).norm(dim=-1, keepdim=True) # [B, H, W, 1] 光线方向和光源的距离
-        A_X = A_X_up / A_X_down
+        # A_X_up =  # [B, H, W, 1] 光线方向和光源方向的夹角
+        # A_X_up = A_X_up ** (mu)
+        # A_X_down = (points_X - points_p).norm(dim=-1, keepdim=True) # [B, H, W, 1] 光线方向和光源的距离
+        A_X = ((L_X.view(-1,1,3) @ light_d).view(B,H,W,1)) ** mu / ((points_X - points_p).norm(dim=-1, keepdim=True)**2)
 
-        normal_N = self.__compute_normals(points_X.view(B,-1,3)).view((B,H,W,3)) # [B, H, W, 3] 法向量
+        normal_N = self.__compute_normals(points_X.view((B,H,W,3))) # [B, H, W, 3] 法向量
+        # normal_N = self.__compute_normals2(points_X.view((B,H,W,3)).transpose(1,-1).transpose(2,3)) # [B, H, W, 3] 法向量
+        del points_X, points_p, light_d
         return L_X, A_X, normal_N
 
-    def __compute_normals(points):
-        """
-        计算点云的法向量。
-        :param points: 点云，形状为(B, N, 3)，其中B是批次大小，N是点的数量。
-        :return: 法向量，形状为(B, N, 3)。
-        """
-        B, N, _ = points.shape
+    def __compute_normals(self, points):
+        B, H, W, _ = points.shape
+        # 初始化法向量张量，与点云相同形状
         normals = torch.zeros_like(points)
+        normals[...,-1] = 1.0
+        def __norm_vector(v):
+            return v / (v.norm(p=2) + 1e-3)
 
-        # 假设`neighbors`是一个形状为(B, N, K, 3)的张量，表示每个点的K个最近邻点。
-        # 这里我们简化处理，直接使用`points`作为每个点的“邻居”。
-        neighbors = points  # 这应该是通过k-NN得到的真实邻居
+        for b in range(B):
+            for i in range(1, H-1):
+                for j in range(1, W-1):
+                    # 获取当前点
+                    point = points[b, i, j]
 
-        # 计算局部协方差矩阵
-        for i in range(B):
-            for j in range(N):
-                # 提取当前点的邻居
-                P = neighbors[i, j, :, :]  # 假设所有点都是其自己的邻居
-                # 计算协方差矩阵
-                cov_matrix = torch.cov(P.T)
-                # 计算特征值和特征向量
-                eigenvalues, eigenvectors = torch.linalg.eigh(cov_matrix)
-                # 最小特征值对应的特征向量是法线方向
-                normal = eigenvectors[:, 0]
-                normals[i, j, :] = normal
+                    # 定义邻域，这里简化为使用周围点
+                    neighbors = points[b, max(i-1, 0):min(i+2, H), max(j-1, 0):min(j+2, W)]
+                    p_N, p_NE, p_E, p_S, p_SW, p_W = neighbors[0,1], neighbors[0,2], neighbors[1,2], neighbors[2,1], neighbors[2,0], neighbors[1,0]
+                    v_N, v_NE, v_E, v_S, v_SW, v_W = p_N - point, p_NE - point, p_E - point, p_S - point, p_SW - point, p_W - point
 
-        # 标准化法线向量
-        normals = normals / torch.norm(normals, dim=2, keepdim=True)
+                    n_0, n_1, n_2 = torch.cross(v_E, v_NE), torch.cross(v_NE, v_N), torch.cross(v_N, v_W)
+                    n_3, n_4, n_5 = torch.cross(v_W, v_SW), torch.cross(v_SW, v_S), torch.cross(v_S, v_E)
+                    n_0, n_1, n_2 = __norm_vector(n_0), __norm_vector(n_1), __norm_vector(n_2)
+                    n_3, n_4, n_5 = __norm_vector(n_3), __norm_vector(n_4), __norm_vector(n_5)
+                    
+                    normal = torch.mean(torch.stack([n_0, n_1, n_2, n_3, n_4, n_5]), dim=0)
+                    normal = __norm_vector(normal)
+                    
+                    normals[b, i, j] = normal
 
         return normals
+
+    def _image_derivatives(self, image,diff_type='center'):
+        c = image.size(1)
+        if diff_type=='center':
+            sobel_x = 0.5*torch.tensor([[0.0,0,0],[-1,0,1],[0,0,0]],device=image.device).view(1,1,3,3).repeat(c,1,1,1)
+            sobel_y = 0.5*torch.tensor([[0.0,1,0],[0,0,0],[0,-1,0]],device=image.device).view(1,1,3,3).repeat(c,1,1,1)
+        elif diff_type=='forward':
+            sobel_x = torch.tensor([[0.0,0,0],[0,-1,1],[0,0,0]],device=image.device).view(1,1,3,3).repeat(c,1,1,1)
+            sobel_y = torch.tensor([[0.0,1,0],[0,-1,0],[0,0,0]],device=image.device).view(1,1,3,3).repeat(c,1,1,1)
+
+        dp_du = torch.nn.functional.conv2d(image,sobel_x,padding=1,groups=3)
+        dp_dv = torch.nn.functional.conv2d(image,sobel_y,padding=1,groups=3)
+        return dp_du, dp_dv
+
+    def __compute_normals2(self, pc, diff_type='center'):
+        #pc (b,3,m,n)
+        #return (b,3,m,n)
+        dp_du, dp_dv = self._image_derivatives(pc,diff_type=diff_type)
+        normal = torch.nn.functional.normalize( torch.cross(dp_du,dp_dv,dim=1)).transpose(1,-1).transpose(1,2)
+        return normal
 

@@ -164,7 +164,7 @@ def main():
         
         model.train()
         total_loss = 0
-        
+        torch.autograd.set_detect_anomaly(True)
         for i, sample in enumerate(trainloader):
             img, depth, valid_mask = sample['image'].cuda(), sample['depth'].cuda(), sample['valid_mask'].cuda()
             
@@ -177,7 +177,8 @@ def main():
             
             pred = model(img) # img -> prediction depth img
             
-            loss = criterion(pred, depth, (valid_mask == 1) & (depth >= args.min_depth) & (depth <= args.max_depth))
+            loss1 = criterion(pred, depth, (valid_mask == 1) & (depth >= args.min_depth) & (depth <= args.max_depth))
+            loss2 = 0
 
             if True:
                 
@@ -188,8 +189,9 @@ def main():
                 pred_resize = F.interpolate(pred.unsqueeze(1), (h,w), mode='bilinear', align_corners=True).squeeze(1)
                 gt_resize = F.interpolate(depth.unsqueeze(1), (h,w), mode='bilinear', align_corners=True).squeeze(1)
 
-                loss += criterion_pps(pred_resize, gt_resize, lightness_mask)
+                loss2 = 250 * criterion_pps(pred_resize, gt_resize, lightness_mask)
             
+            loss = loss1 + loss2
             loss.backward()
             optimizer.step()
             
@@ -206,6 +208,8 @@ def main():
             
             if rank == 0:
                 writer.add_scalar('train/loss', loss.item(), iters)
+                writer.add_scalar('train/loss_SiLog', loss1.item(), iters)
+                writer.add_scalar('train/loss_PPS', loss2.item(), iters)
                 writer.add_scalar('train/MAE', (pred - depth).abs().mean(), iters)
             
             if rank == 0 and i % 100 == 0:

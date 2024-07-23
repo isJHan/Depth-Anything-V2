@@ -199,7 +199,7 @@ class UCL_PPS(Dataset):
         
         # sample['valid_mask'] = (sample['depth'] <= 80)
         sample['valid_mask'] = (sample['depth'] >= 0)  
-        sample['lightness_mask'] = (sample['image'][:, :, :] > 0.9)[0:1]
+        sample['lightness_mask'] = (image[:, :, :] < 0.9)[...,0:1]
         
         sample['image_path'] = self.filelist[item].split(' ')[0]
         sample['intri'] = self.K
