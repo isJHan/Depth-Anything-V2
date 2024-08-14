@@ -181,7 +181,7 @@ class C3VD_flip_and_swap(Dataset):
         # depth = 200.0 * cv2.imread(depth_path, -1)/255.0  # mm
         depth = np.load(depth_path)
         # depth = 200.0 * depth / 65535.0
-        image, depth = self.__swap(image, depth)
+        # image, depth = self.__swap(image, depth)
         image, depth = self.__flip(image, depth)
         
         sample = self.transform({'image': image, 'depth': depth})

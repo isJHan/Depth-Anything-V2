@@ -20,7 +20,7 @@ from dataset.kitti import KITTI
 from dataset.vkitti2 import VKITTI2
 from dataset.c3vd import C3VD, C3VD_flip_and_swap
 from dataset.UCL import UCL, UCL_flip_and_swap
-from dataset.SimCol import SimCol
+from dataset.SimCol import SimCol, SimCol_flip_and_swap
 from depth_anything_v2.dpt import DepthAnythingV2
 from util.dist_helper import setup_distributed
 from util.loss import SiLogLoss
@@ -37,7 +37,7 @@ from util.utils import init_log
 parser = argparse.ArgumentParser(description='Depth Anything V2 for Metric Depth Estimation')
 
 parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap', 'UCL_pps','c3vd', 'c3vd_flip_and_swap', 'SimCol'])
+parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap', 'UCL_pps','c3vd', 'c3vd_flip_and_swap', 'SimCol', 'SimCol_flip_and_swap'])
 parser.add_argument('--img-size', default=518, type=int)
 parser.add_argument('--min-depth', default=0.001, type=float)
 parser.add_argument('--max-depth', default=200, type=float) # UCL SimCol 200mm, C3VD 100mm
@@ -91,6 +91,8 @@ def main():
         trainset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
     elif args.dataset == 'SimCol':
         trainset = SimCol('metric_depth/dataset/splits/Simcol/train.txt', 'train', size=size)
+    elif args.dataset == 'SimCol_flip_and_swap':
+        trainset = SimCol_flip_and_swap('metric_depth/dataset/splits/Simcol/train.txt', 'train', size=size)
     else:
         raise NotImplementedError
     # trainsampler = torch.utils.data.distributed.DistributedSampler(trainset)
@@ -112,6 +114,8 @@ def main():
         valset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol':
         valset = SimCol('metric_depth/dataset/splits/Simcol/val.txt', 'val', size=size)
+    elif args.dataset == 'SimCol_flip_and_swap':
+        valset = SimCol_flip_and_swap('metric_depth/dataset/splits/Simcol/val.txt', 'val', size=size)
     else:
         raise NotImplementedError
     # valsampler = torch.utils.data.distributed.DistributedSampler(valset)
