@@ -19,7 +19,7 @@ from dataset.hypersim import Hypersim
 from dataset.kitti import KITTI
 from dataset.vkitti2 import VKITTI2
 from dataset.c3vd import C3VD, C3VD_flip_and_swap
-from dataset.UCL import UCL, UCL_flip_and_swap
+from dataset.UCL import UCL, UCL_flip_and_swap, UCL_aug
 from dataset.SimCol import SimCol, SimCol_flip_and_swap
 from depth_anything_v2.dpt import DepthAnythingV2
 from util.dist_helper import setup_distributed
@@ -36,17 +36,17 @@ from util.utils import init_log
 
 parser = argparse.ArgumentParser(description='Depth Anything V2 for Metric Depth Estimation')
 
-parser.add_argument('--encoder', default='vitl', choices=['vits', 'vitb', 'vitl', 'vitg'])
-parser.add_argument('--dataset', default='c3vd', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap', 'UCL_pps','c3vd', 'c3vd_flip_and_swap', 'SimCol', 'SimCol_flip_and_swap'])
+parser.add_argument('--encoder', default='vits', choices=['vits', 'vitb', 'vitl', 'vitg'])
+parser.add_argument('--dataset', default='UCL_aug', choices=['hypersim', 'vkitti', 'UCL', 'UCL_flip_and_swap', 'UCL_pps', 'UCL_aug', 'c3vd', 'c3vd_flip_and_swap', 'SimCol', 'SimCol_flip_and_swap'])
 parser.add_argument('--img-size', default=518, type=int)
 parser.add_argument('--min-depth', default=0.001, type=float)
 parser.add_argument('--max-depth', default=200, type=float) # UCL SimCol 200mm, C3VD 100mm
-parser.add_argument('--epochs', default=50, type=int)
+parser.add_argument('--epochs', default=5, type=int)
 parser.add_argument('--bs', default=2, type=int) # batch_size
 parser.add_argument('--lr', default=0.000005, type=float)
 # parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vitl.pth', type=str)
-parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/SimCol/train_from_latest.pth', type=str)
-parser.add_argument('--save-path', default='/Disk_2/ZanXin/Depth-Anything-V2/train_checkpoints/C3VD',type=str, required=False)
+parser.add_argument('--pretrained-from', default='/home/jiahan/jiahan/codes/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vits.pth', type=str)
+parser.add_argument('--save-path', default='./tmp',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
 
@@ -86,9 +86,11 @@ def main():
     elif args.dataset == "c3vd_flip_and_swap":
         trainset = C3VD_flip_and_swap('metric_depth/dataset/splits/c3vd/train.txt', 'train', size=size)
     elif args.dataset == 'UCL':
-        trainset = UCL('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
+        trainset = UCL('metric_depth/dataset/splits/UCL_aug/train.txt', 'train', size=size)
     elif args.dataset == 'UCL_flip_and_swap':
         trainset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/train.txt', 'train', size=size)
+    elif args.dataset == 'UCL_aug':
+        trainset = UCL_aug('metric_depth/dataset/splits/UCL_aug/train.txt', 'train', size=size)
     elif args.dataset == 'SimCol':
         trainset = SimCol('metric_depth/dataset/splits/Simcol/train.txt', 'train', size=size)
     elif args.dataset == 'SimCol_flip_and_swap':
@@ -109,9 +111,11 @@ def main():
     elif args.dataset == 'c3vd_flip_and_swap':
         valset = C3VD_flip_and_swap('metric_depth/dataset/splits/c3vd/val.txt', 'val', size=size)
     elif args.dataset == 'UCL':
-        valset = UCL('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
+        valset = UCL('metric_depth/dataset/splits/UCL_aug/val.txt', 'val', size=size)
     elif args.dataset == 'UCL_flip_and_swap':
         valset = UCL_flip_and_swap('metric_depth/dataset/splits/UCL/val.txt', 'val', size=size)
+    elif args.dataset == 'UCL_aug':
+        valset = UCL_aug('metric_depth/dataset/splits/UCL_aug/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol':
         valset = SimCol('metric_depth/dataset/splits/Simcol/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol_flip_and_swap':

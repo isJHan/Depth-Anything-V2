@@ -21,3 +21,5 @@ save_checkpoints
 
 *.pth
 *.swp
+
+tmp/**

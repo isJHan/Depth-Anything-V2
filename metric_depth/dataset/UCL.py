@@ -147,3 +147,82 @@ class UCL_flip_and_swap(Dataset):
 
     def __len__(self):
         return len(self.filelist)
+    
+
+
+class UCL_aug(Dataset):
+    def __init__(self, filelist_path, mode, size=(518, 518)):
+        
+        self.mode = mode
+        self.size = size
+        
+        with open(filelist_path, 'r') as f:
+            self.filelist = f.read().splitlines()
+        
+        net_w, net_h = size
+        self.transform = Compose([
+            Resize(
+                width=net_w,
+                height=net_h,
+                resize_target=True if mode == 'train' else False,
+                keep_aspect_ratio=True,
+                ensure_multiple_of=14,
+                resize_method='lower_bound',
+                image_interpolation_method=cv2.INTER_CUBIC,
+            ),
+            NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            PrepareForNet(),
+        ] + ([Crop(size[0])] if self.mode == 'train' else []))
+        self.prob = 0.8 # 0.2 的概率裁切
+        self.rate = 0.5 # 裁切后的大小是 0.5 倍的原大小
+    
+    def _get_crop_param(self, image):
+        """get crop begin cor
+
+        Args:
+            image (_type_): _description_
+
+        Returns:
+            (x,y): begin x and y cor
+        """
+        h,w, _ = image.shape
+        crop_h, crop_w = int(self.rate*h), int(self.rate*w)
+        begin_x, begin_y = random.randint(0, w-crop_w-1), random.randint(0, h-crop_h-1)
+        return begin_x, begin_y
+        
+    
+    def __getitem__(self, item):
+        # ! #jiahan 生成的txt文件中，每一行是一个样本，第一个是depth图像的路径，第二个是rgb图像的路径
+        img_path = self.filelist[item].split(' ')[1]
+        depth_path = self.filelist[item].split(' ')[0]
+        
+        image = cv2.imread(img_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) / 255.0
+        h,w,_ = image.shape
+        crop_x, crop_y = self._get_crop_param(image)
+        crop_x_, crop_y_ = crop_x + int(self.rate*w), crop_y + int(self.rate*h)
+        
+        # depth = 200.0 * cv2.imread(depth_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)/255.0  # mm
+        depth = 200.0 * cv2.imread(depth_path, -1)/255.0  # mm
+        
+        # crop
+        if random.random() > self.prob:
+            image = image[crop_y:crop_y_, crop_x:crop_x_]
+            depth = depth[crop_y:crop_y_, crop_x:crop_x_]
+        
+        sample = self.transform({'image': image, 'depth': depth})
+
+        sample['image'] = torch.from_numpy(sample['image'])
+        sample['depth'] = torch.from_numpy(sample['depth'])
+        
+        # sample['valid_mask'] = (sample['depth'] <= 80)
+        sample['valid_mask'] = (sample['depth'] >= 0)  
+        
+        sample['image_path'] = self.filelist[item].split(' ')[0]
+        
+        return sample
+
+    def __len__(self):
+        return len(self.filelist)
+    
+    
