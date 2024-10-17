@@ -46,6 +46,8 @@ parser.add_argument('--bs', default=2, type=int) # batch_size
 parser.add_argument('--lr', default=0.000005, type=float)
 # parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vitl.pth', type=str)
 parser.add_argument('--pretrained-from', default='/home/jiahan/jiahan/codes/Depth-Anything-V2/tmp/2024-10-07_14-17-16/latest_4.pth', type=str)
+parser.add_argument('--init-from', default='/home/jiahan/jiahan/codes/Depth-Anything-V2/tmp/2024-10-08_21-14-04/latest_4.pth', type=str)
+parser.add_argument('--is-infer', default=False, type=bool)
 parser.add_argument('--save-path', default='./tmp',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
@@ -78,7 +80,8 @@ def main():
    
    # 训练之前推理
     print("========== infering ===========")
-    os.system(f"python scripts/run_ucl_metric.py --load-from {args.pretrained_from}")
+    # os.system(f"python scripts/run_ucl_metric.py --load-from {args.pretrained_from}")
+    os.system(f"python scripts/run_ucl_metric.py --load-from {args.init_from}")
     print("===============================")
     
     size = (args.img_size, args.img_size)
@@ -124,7 +127,7 @@ def main():
     elif args.dataset == 'UCL_aug':
         valset = UCL_aug('metric_depth/dataset/splits/UCL_aug/val.txt', 'val', size=size)
     elif args.dataset == 'UCL_self':
-        valset = UCL_aug('metric_depth/dataset/splits/UCL_self/val.txt', 'val', size=size)
+        valset = UCL('metric_depth/dataset/splits/UCL_self/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol':
         valset = SimCol('metric_depth/dataset/splits/Simcol/val.txt', 'val', size=size)
     elif args.dataset == 'SimCol_flip_and_swap':
@@ -148,7 +151,13 @@ def main():
     model = DepthAnythingV2(**{**model_configs[args.encoder], 'max_depth': args.max_depth})
     
     if args.pretrained_from:
-        model.load_state_dict({k: v for k, v in torch.load(args.pretrained_from, map_location='cpu').items() if 'pretrained' in k}, strict=False)
+        weight = torch.load(args.pretrained_from, map_location='cpu')
+        if 'model' in weight.keys(): weight = weight['model']
+        else: pass
+        model.load_state_dict(weight)
+        
+        # ! NOTE 下面的代码有BUG，会加载失败，这是因为我们保存的dict没有这个键，但是strict是False，导致不会出现报错
+        # model.load_state_dict({k: v for k, v in torch.load(args.pretrained_from, map_location='cpu').items() if 'pretrained' in k}, strict=False)
     
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model) # 保持 BatchNorm 层的统计数据同步
     
@@ -283,9 +292,10 @@ def main():
 
         print("finish this epoch!!!!!")
         
-        print("========== infering ===========")
-        os.system(f"python scripts/run_ucl_metric.py --load-from {os.path.join(args.save_path, f'latest_{epoch}.pth')}")
-        print("===============================")
+        if args.is_infer:
+            print("========== infering ===========")
+            os.system(f"python scripts/run_ucl_metric.py --load-from {os.path.join(args.save_path, f'latest_{epoch}.pth')}")
+            print("===============================")
 
 
 if __name__ == '__main__':

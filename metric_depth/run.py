@@ -58,6 +58,7 @@ if __name__ == '__main__':
     cmap = matplotlib.colormaps.get_cmap('Spectral')
     
     for k, filename in enumerate(filenames):
+        if(filename.split('/')[-1][0]=="D"): continue
         print(f'Progress {k+1}/{len(filenames)}: {filename}')
         
         raw_image = cv2.imread(filename)
