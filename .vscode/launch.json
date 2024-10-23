@@ -5,6 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "train self",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/home/jiahan/jiahan/codes/Depth-Anything-V2/metric_depth/train_self.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "train UCL",
             "type": "debugpy",
             "request": "launch",
@@ -17,10 +31,14 @@
             "request": "launch",
             "program": "metric_depth/run.py",
             "args": [
-                "--img-path", "/home/zanxin/jiahan/T1/C_T1_L1_1_resized/FrameBuffer_0382.png",
-                "--outdir", ".",
-                "--load-from", "metric_depth/123.pth",
-                "--max-depth", "200"
+                "--img-path",
+                "/home/zanxin/jiahan/T1/C_T1_L1_1_resized/FrameBuffer_0382.png",
+                "--outdir",
+                ".",
+                "--load-from",
+                "metric_depth/123.pth",
+                "--max-depth",
+                "200"
             ],
             "console": "integratedTerminal"
         },
@@ -31,15 +49,20 @@
             "program": "metric_depth/train.py",
             "console": "integratedTerminal",
             "args": [
-                "--encoder", "vits", 
-                "--dataset", "UCL_flip_and_swap", 
+                "--encoder",
+                "vits",
+                "--dataset",
+                "UCL_flip_and_swap",
                 // "--dataset", "UCL", 
-                "--max-depth", "200", 
-                "--epochs", "10", 
-                "--save-path", "./save_checkpoints/vits_ucl_metric_flip_and_swap", 
-                "--pretrained-from", "checkpoints/depth_anything_v2_metric_hypersim_vits.pth" 
+                "--max-depth",
+                "200",
+                "--epochs",
+                "10",
+                "--save-path",
+                "./save_checkpoints/vits_ucl_metric_flip_and_swap",
+                "--pretrained-from",
+                "checkpoints/depth_anything_v2_metric_hypersim_vits.pth"
             ]
         },
-        
     ]
 }

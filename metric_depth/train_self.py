@@ -47,7 +47,7 @@ parser.add_argument('--lr', default=0.000005, type=float)
 # parser.add_argument('--pretrained-from', default='/Disk_2/ZanXin/Depth-Anything-V2/checkpoints/depth_anything_v2_metric_hypersim_vitl.pth', type=str)
 parser.add_argument('--pretrained-from', default='/home/jiahan/jiahan/codes/Depth-Anything-V2/tmp/2024-10-07_14-17-16/latest_4.pth', type=str)
 parser.add_argument('--init-from', default='/home/jiahan/jiahan/codes/Depth-Anything-V2/tmp/2024-10-08_21-14-04/latest_4.pth', type=str)
-parser.add_argument('--is-infer', default=False, type=bool)
+parser.add_argument('--is-infer', action='store_true')
 parser.add_argument('--save-path', default='./tmp',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
@@ -62,7 +62,7 @@ def main():
     
     logger = init_log('global', logging.INFO)
     logger.propagate = 0
-    
+    print("!!! ", args.is_infer)
     # rank, world_size = setup_distributed(port=args.port) # 设置分布式训练环境，包括获取当前进程的 rank 或者 world_size(num_gpus)
     
     rank = 0

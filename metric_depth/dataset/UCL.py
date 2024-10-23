@@ -251,7 +251,7 @@ class UCL_self(Dataset):
             NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             PrepareForNet(),
         ] + ([Crop(size[0])] if self.mode == 'train' else []))
-        self.prob = 0.8 # 0.2 的概率裁切
+        self.prob = 0.5 # 0.5 的概率裁切
         self.rate = 0.5 # 裁切后的大小是 0.5 倍的原大小
     
     def _get_crop_param(self, image):
@@ -285,9 +285,9 @@ class UCL_self(Dataset):
         depth = np.load(depth_path)
         
         # crop
-        
-        image = image[crop_y:crop_y_, crop_x:crop_x_]
-        depth = depth[crop_y:crop_y_, crop_x:crop_x_]
+        if random.random() > self.prob:
+            image = image[crop_y:crop_y_, crop_x:crop_x_]
+            depth = depth[crop_y:crop_y_, crop_x:crop_x_]
         
         sample = self.transform({'image': image, 'depth': depth})
 
