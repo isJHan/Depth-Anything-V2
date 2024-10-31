@@ -51,6 +51,7 @@ parser.add_argument('--is-infer', action='store_true')
 parser.add_argument('--save-path', default='./tmp',type=str, required=False)
 parser.add_argument('--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
+parser.add_argument('--frozen-encoder', default=False, type=bool)
 
 
 def main():
@@ -149,6 +150,7 @@ def main():
         'vitg': {'encoder': 'vitg', 'features': 384, 'out_channels': [1536, 1536, 1536, 1536]}
     }
     model = DepthAnythingV2(**{**model_configs[args.encoder], 'max_depth': args.max_depth})
+    if args.frozen_encoder: model.pretrained.requires_grad_(False) # ! 冻结encoder
     
     if args.pretrained_from:
         weight = torch.load(args.pretrained_from, map_location='cpu')
